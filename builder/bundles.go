@@ -824,26 +824,28 @@ func buildFullChroot(b *Builder, set *bundleSet, packagerCmd []string, buildVers
 		if err := installBundleToFull(packagerCmd, fullDir, bundle, downloadRetries, numWorkers, b.repos); err != nil {
 			return err
 		}
-		// special handling for os-core
-		if bundle.Name == "os-core" {
-			fmt.Println("... building special os-core content")
-			if err := buildOsCore(b, packagerCmd, fullDir, version); err != nil {
-				return err
-			}
-		}
-		// special handling for update bundle
-		if bundle.Name == b.Config.Swupd.Bundle {
-			fmt.Printf("... Adding swupd default values to %s bundle\n", bundle.Name)
-			if err := genUpdateBundleSpecialFiles(fullDir, b); err != nil {
-				return err
-			}
-		}
 	}
 
 	// Resolve bundle content chroots against the full chroot. New files are copied
 	// to the full chroot and the bundle file lists are updated to contain the files
 	// within the chroot.
-	return addBundleContentChroots(set, fullDir)
+	if err := addBundleContentChroots(set, fullDir); err != nil {
+		return err
+	}
+
+	// special handling for os-core
+	fmt.Println("... building special os-core content")
+	if err := buildOsCore(b, packagerCmd, fullDir, version); err != nil {
+		return err
+	}
+
+	// special handling for update bundle
+	fmt.Printf("... Adding swupd default values to %s bundle\n", b.Config.Swupd.Bundle)
+	if err := genUpdateBundleSpecialFiles(fullDir, b); err != nil {
+		return err
+	}
+
+	return err
 }
 
 // addBundleContentChroots resolves each bundle's content choots against the full chroot
@@ -1197,7 +1199,6 @@ func createVersionsFile(baseDir string, packagerCmd []string) error {
 }
 
 func updateOSReleaseFile(b *Builder, filename, version string, homeURL string) error {
-	fmt.Println("... updating os-release file")
 	//Replace the default os-release file if customized os-release file found
 	var err error
 	var f *os.File
@@ -1212,7 +1213,7 @@ func updateOSReleaseFile(b *Builder, filename, version string, homeURL string) e
 		}
 		f, err = os.Open(filename)
 	}
-
+	fmt.Println("... updating os-release file")
 	if err != nil {
 		return err
 	}
