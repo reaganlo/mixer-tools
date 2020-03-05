@@ -75,11 +75,56 @@ const (
 	ModifierBoot
 )
 
-var modifierBytes = map[ModifierFlag]byte{
-	ModifierUnset:  '.',
-	ModifierConfig: 'C',
-	ModifierState:  's',
-	ModifierBoot:   'b',
+// ModifierFlagInfo represents the info related to the ModifierFlag
+type ModifierFlagInfo struct {
+	FlagBytes            byte     // flag value
+	HeuristicFile        string   // file specifying the heuristic dir paths
+	DefaultHeuristicDirs []string // default heuristic dir paths in case HeuristicFile does not exist
+}
+
+var modifierFlagInfo = map[ModifierFlag]ModifierFlagInfo{
+	ModifierUnset: ModifierFlagInfo{
+		'.',
+		"",
+		[]string{
+			"",
+		},
+	},
+
+	ModifierConfig: ModifierFlagInfo{
+		'C',
+		"configdirs",
+		[]string{
+			"/etc",
+		},
+	},
+
+	ModifierState: ModifierFlagInfo{
+		's',
+		"statedirs",
+		[]string{
+			"/dev",
+			"/home",
+			"/proc",
+			"/root",
+			"/run",
+			"/sys",
+			"/tmp",
+			"/var",
+			"/usr/src",
+			"/lost+found",
+		},
+	},
+
+	ModifierBoot: ModifierFlagInfo{
+		'b',
+		"bootdirs",
+		[]string{
+			"/boot",
+			"/usr/lib/modules",
+			"/usr/lib/kernel",
+		},
+	},
 }
 
 // MiscFlag is a placeholder for additional flags that can be used by swupd-client.
@@ -255,7 +300,7 @@ func (f *File) GetFlagString() (string, error) {
 	flagBytes := []byte{
 		typeBytes[f.Type],
 		statusBytes[f.Status],
-		modifierBytes[f.Modifier],
+		modifierFlagInfo[f.Modifier].FlagBytes,
 		miscByte,
 	}
 

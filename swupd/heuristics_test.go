@@ -18,7 +18,9 @@ func TestSetConfigFromPathname(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.file.Name, func(t *testing.T) {
-			tc.file.setConfigFromPathname()
+			if err := tc.file.setFlagFromPathname(ModifierConfig); err != nil {
+				t.Errorf("error setting ModifierConfig")
+			}
 			if tc.file.Modifier != tc.expected {
 				t.Errorf("file %v modifier %v did not match expected %v",
 					tc.file.Name, tc.file.Modifier, tc.expected)
@@ -43,7 +45,9 @@ func TestSetStateFromPathname(t *testing.T) {
 	for _, tc := range pathTestCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			// actual directories do not get their modifier set
-			tc.setStateFromPathname()
+			if err := tc.setFlagFromPathname(ModifierState); err != nil {
+				t.Errorf("error setting ModifierState")
+			}
 			if tc.Modifier != ModifierUnset {
 				t.Errorf("file %v modifier %v did not match expected %v",
 					tc.Name, tc.Modifier, ModifierUnset)
@@ -51,7 +55,9 @@ func TestSetStateFromPathname(t *testing.T) {
 
 			// now check children of the directory
 			tc.Name = tc.Name + "/a"
-			tc.setStateFromPathname()
+			if err := tc.setFlagFromPathname(ModifierState); err != nil {
+				t.Errorf("error setting ModifierState")
+			}
 			if tc.Modifier != ModifierState {
 				t.Errorf("file %v modifier %v did not match expected %v",
 					tc.Name, tc.Modifier, ModifierState)
@@ -71,7 +77,9 @@ func TestSetStateFromPathname(t *testing.T) {
 
 	for _, tc := range allTestCases {
 		t.Run(tc.file.Name, func(t *testing.T) {
-			tc.file.setStateFromPathname()
+			if err := tc.file.setFlagFromPathname(ModifierState); err != nil {
+				t.Errorf("error setting ModifierState")
+			}
 			if tc.file.Modifier != tc.expected {
 				t.Errorf("file %v modifier %v did not match expected %v",
 					tc.file.Name, tc.file.Modifier, tc.expected)
@@ -93,7 +101,12 @@ func TestSetBootFromPathname(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.file.Name, func(t *testing.T) {
-			tc.file.setBootFromPathname()
+			if err := tc.file.setFlagFromPathname(ModifierBoot); err != nil {
+				t.Errorf("error setting ModifierBoot")
+			}
+			if tc.file.Status == StatusDeleted {
+				tc.file.Status = StatusGhosted
+			}
 			if tc.file.Modifier != tc.expected {
 				t.Errorf("file %v modifier %v did not match expected %v",
 					tc.file.Name, tc.file.Modifier, tc.expected)
@@ -117,7 +130,9 @@ func TestSetModifierFromPathname(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.file.Name, func(t *testing.T) {
-			tc.file.setModifierFromPathname()
+			if err := tc.file.setModifierFromPathname(); err != nil {
+				t.Errorf("error setting ModifierFlag: %v", err)
+			}
 			if tc.file.Modifier != tc.expected {
 				t.Errorf("file %v modifier %v did not match expected %v",
 					tc.file.Name, tc.file.Modifier, tc.expected)
@@ -141,7 +156,9 @@ func TestApplyHeuristics(t *testing.T) {
 		m.Files = append(m.Files, &File{Name: key})
 	}
 
-	m.applyHeuristics()
+	if err := m.applyHeuristics(); err != nil {
+		t.Errorf("error applying heuristics: %v", err)
+	}
 	for _, f := range m.Files {
 		if f.Modifier != testCases[f.Name] {
 			t.Errorf("file %v modifier %v did not match expected %v",

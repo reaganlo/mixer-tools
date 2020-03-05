@@ -213,7 +213,9 @@ func processBundles(ui UpdateInfo, c config, numWorkers int) ([]*Manifest, error
 
 		// detect modifier flag for all files in the manifest
 		// must happen after finding newDeleted files to catch ghosted files.
-		bundle.applyHeuristics()
+		if err := bundle.applyHeuristics(); err != nil {
+			return nil, err
+		}
 		// Assign final FileCount based on the files that made it this far
 		bundle.Header.FileCount = uint32(len(bundle.Files))
 		// If we made it this far, this bundle has a change and should be written

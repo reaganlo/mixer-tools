@@ -14,92 +14,82 @@
 
 package swupd
 
-import "strings"
+import (
+	"fmt"
+	"os"
+	"strings"
 
-func (f *File) setConfigFromPathname() {
-	// TODO: make this list configurable
-	configPaths := []string{
-		"/etc/",
+	"github.com/pkg/errors"
+
+	"github.com/clearlinux/mixer-tools/helpers"
+)
+
+// setFlagFromPathname sets the ModifierFlag for a file if it has a prefix in the input dirs file.
+// If the dirs file does not exist, it is created with set of default values.
+func (f *File) setFlagFromPathname(flag ModifierFlag) error {
+	fileName := modifierFlagInfo[flag].HeuristicFile
+	dirPaths, err := helpers.ReadFileAndSplit(modifierFlagInfo[flag].HeuristicFile)
+	if os.IsNotExist(err) {
+
+		heuristicFile, err := os.Create(fileName)
+		if err != nil {
+			return errors.Wrap(err, "Failed to create "+fileName)
+		}
+
+		dirPaths = modifierFlagInfo[flag].DefaultHeuristicDirs
+		_, err = fmt.Fprintln(heuristicFile, dirPaths)
+		if err != nil {
+			return errors.Wrap(err, "Failed to write "+fileName)
+		}
+
+		err = heuristicFile.Close()
+		if err != nil {
+			return errors.Wrap(err, "Failed to close "+fileName)
+		}
+
+	} else if err != nil {
+		return errors.Wrap(err, "Failed to read "+fileName)
 	}
 
-	for _, path := range configPaths {
+	for _, dirPath := range dirPaths {
+		path := strings.TrimSpace(dirPath)
+		if path == "" {
+			continue
+		}
+
 		if strings.HasPrefix(f.Name, path) {
-			f.Modifier = ModifierConfig
-			return
-		}
-	}
-}
-
-func (f *File) setStateFromPathname() {
-	// TODO: make this list configurable
-	statePaths := []string{
-		"/usr/src/debug",
-		"/dev",
-		"/home",
-		"/proc",
-		"/root",
-		"/run",
-		"/sys",
-		"/tmp",
-		"/var",
-	}
-
-	for _, path := range statePaths {
-		// if no trailing / these are state directories that are actually shipped
-		// otherwise this is a non-shipped state file and the modifier should be
-		// set to state
-		if f.Name == path {
-			return
-		} else if strings.HasPrefix(f.Name, path+"/") {
-			f.Modifier = ModifierState
-			return
+			f.Modifier = flag
+			break
 		}
 	}
 
-	// TODO: make this list configurable
-	// these are paths that are not shipped directories
-	stateDirs := []string{
-		"/usr/src/",
-		"/lost+found",
-	}
-
-	for _, path := range stateDirs {
-		if strings.HasPrefix(f.Name, path) {
-			f.Modifier = ModifierState
-			return
-		}
-	}
+	return nil
 }
 
-func (f *File) setBootFromPathname() {
-	// TODO: make this list configurable
-	bootPaths := []string{
-		"/boot/",
-		"/usr/lib/modules/",
-		"/usr/lib/kernel/",
-	}
-
-	for _, path := range bootPaths {
-		if strings.HasPrefix(f.Name, path) {
-			f.Modifier = ModifierBoot
-			if f.Status == StatusDeleted {
-				f.Status = StatusGhosted
-			}
-			return
-		}
-	}
-}
-
-func (f *File) setModifierFromPathname() {
-	// order here matters, first check for config, then state, finally boot
-	// more important modifiers must happen last to overwrite earlier ones
-	f.setConfigFromPathname()
-	f.setStateFromPathname()
-	f.setBootFromPathname()
-}
-
-func (m *Manifest) applyHeuristics() {
+func (m *Manifest) applyHeuristics() error {
 	for _, f := range m.Files {
-		f.setModifierFromPathname()
+		if err := f.setModifierFromPathname(); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+func (f *File) setModifierFromPathname() error {
+	// The order matters, first check for config, then state and then boot.
+	// More important modifiers must happen last to overwrite earlier ones.
+	var err error
+	if err = f.setFlagFromPathname(ModifierConfig); err != nil {
+		return err
+	}
+	if err := f.setFlagFromPathname(ModifierState); err != nil {
+		return err
+	}
+	if err := f.setFlagFromPathname(ModifierBoot); err != nil {
+		return err
+	}
+	if f.Status == StatusDeleted {
+		f.Status = StatusGhosted
+	}
+	return nil
 }
