@@ -43,6 +43,8 @@ type repoInfo struct {
 	url       string
 }
 
+const localYumDir = "local-yum"
+
 const dnfConfRepoTemplate = `
 [{{.RepoName}}]
 name={{.RepoName}}
@@ -99,7 +101,7 @@ func (b *Builder) NewDNFConfIfNeeded() error {
 	if _, err := os.Stat(b.Config.Builder.DNFConf); os.IsNotExist(err) {
 		conf.Base = true
 		if b.Config.Mixer.LocalRepoDir != "" {
-			conf.Local = true
+			conf.Local = false
 		}
 	} else if err == nil && b.Config.Mixer.LocalRepoDir != "" {
 		// check if conf file contains local section
@@ -108,7 +110,7 @@ func (b *Builder) NewDNFConfIfNeeded() error {
 			return err
 		}
 		if !strings.Contains(string(raw), "[local]") {
-			conf.Local = true
+			conf.Local = false
 		}
 	}
 
@@ -131,17 +133,18 @@ func (b *Builder) NewDNFConfIfNeeded() error {
 			return errors.Wrapf(err, "Failed to write to dnf file: %s", b.Config.Builder.DNFConf)
 		}
 	}
-
-	if b.Config.Mixer.LocalRepoDir != "" {
-		localRepo := path.Join(b.Config.Mixer.LocalRepoDir, "repodata")
-		if _, err := os.Stat(localRepo); os.IsNotExist(err) {
-			if err = b.createLocalRepo(); err != nil {
+	/*
+		if b.Config.Mixer.LocalRepoDir != "" {
+			localRepo := path.Join(b.Config.Mixer.LocalRepoDir, "repodata")
+			if _, err := os.Stat(localRepo); os.IsNotExist(err) {
+				if err = b.createLocalRepo(); err != nil {
+					return err
+				}
+			} else if err != nil {
 				return err
 			}
-		} else if err != nil {
-			return err
 		}
-	}
+	*/
 	return nil
 }
 
@@ -189,6 +192,29 @@ func (b *Builder) AddRepo(name, url, priority string) error {
 	}
 
 	return nil
+}
+
+// getRepoVal gets a value for the specified repo and key in the DNF config
+func (b *Builder) getRepoVal(repo, key string) (string, error) {
+	if err := b.NewDNFConfIfNeeded(); err != nil {
+		return "", err
+	}
+
+	DNFConf, err := ini.Load(b.Config.Builder.DNFConf)
+	if err != nil {
+		return "", err
+	}
+
+	s, err := DNFConf.GetSection(repo) // Do not return as error. Handle it in calling function.
+	if err != nil {
+		return "", nil
+	}
+
+	k, err := s.GetKey(key) // Do not return as error. Handle it in calling function.
+	if err != nil {
+		return "", nil
+	}
+	return k.Value(), nil
 }
 
 // setRepoVal sets a key/value pair for the specified repo in the DNF config
@@ -441,13 +467,38 @@ func checkRPM(path string) error {
 }
 
 func (b *Builder) createLocalRepo() error {
-	if _, err := os.Stat(b.Config.Mixer.LocalRepoDir); err != nil {
+	repo := "local"
+	key := "baseurl"
+	val, err := b.getRepoVal(repo, key)
+	if err == nil && val == "" { // if the local repo entry does not exist in the yum conf, add it.
+		pwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		val = "file://" + filepath.Join(pwd, localYumDir) // set default local repo
+		if err := b.AddRepo(repo, val, "1"); err != nil {
+			return err
+		}
+	}
+
+	pURL, err := url.Parse(val)
+	if err != nil {
 		return err
 	}
-	cmd := exec.Command("createrepo_c", ".")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Dir = b.Config.Mixer.LocalRepoDir
 
-	return cmd.Run()
+	if pURL.Scheme == "file" { // If url has file scheme, then check if the repo exists.
+		dir := pURL.Path
+		localRepo := path.Join(dir, "repodata")
+		if _, err := os.Stat(localRepo); os.IsNotExist(err) { // If the local repo does not exist, create it.
+			cmd := exec.Command("createrepo_c", ".")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Dir = dir
+			return cmd.Run()
+		}
+	} else {
+		return fmt.Errorf("not a local repo: %s", val)
+	}
+
+	return nil
 }
