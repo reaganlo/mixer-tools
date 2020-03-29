@@ -46,7 +46,7 @@ setup() {
   [[ ${#lines[@]} -eq 0 ]]                                      # 'list local' returns no results
 
   mixer $MIXARGS bundle create editors
-  [[ $(ls -1q $BATS_TEST_DIRNAME/local-bundles) = "editors" ]]  # local-bundles only has "editors"
+  [[ $(sudo ls -1q $BATS_TEST_DIRNAME/local-bundles) = "editors" ]]  # local-bundles only has "editors"
 
   run mixer $MIXARGS bundle list
   [[ "$output" =~ editors[[:space:]]+\(local ]]                 # "editors" bundle is now from local
@@ -63,7 +63,7 @@ setup() {
 
   # "editors" bundle is still in local-bundles
   mixer $MIXARGS bundle list local | grep -q editors
-  [[ $(ls -1q $BATS_TEST_DIRNAME/local-bundles | wc -l) == 1 ]]
+  [[ $(sudo ls -1q $BATS_TEST_DIRNAME/local-bundles | wc -l) == 1 ]]
   [[ $(ls -1q $BATS_TEST_DIRNAME/local-bundles) = "editors" ]]
 
   mixer $MIXARGS bundle remove editors --local

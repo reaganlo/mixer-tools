@@ -29,7 +29,7 @@ setup() {
       if [ -z "$f" ]; then
         continue
       fi
-      size=$(stat -c "%s" "${chroot}${f}")
+      size=$(sudo stat -c "%s" "${chroot}${f}")
       total=$((total + size))
     done <<< "$files"
 

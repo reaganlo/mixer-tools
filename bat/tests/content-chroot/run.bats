@@ -64,8 +64,8 @@ setup() {
     "$fullChroot/dirPerm" "$fullChroot/specialPermsFile" "$fullChroot/specialPermsDir")
 
   for ((i=0;i<${#statList1[@]};i++)); do
-    filePerms1=$(stat -c '%A:%U:%G' "${statList1[i]}")
-    filePerms2=$(stat -c '%A:%U:%G' "${statList2[i]}")
+    filePerms1=$(sudo stat -c '%A:%U:%G' "${statList1[i]}")
+    filePerms2=$(sudo stat -c '%A:%U:%G' "${statList2[i]}")
     [[ "$filePerms1" = "$filePerms2" ]]
   done
 

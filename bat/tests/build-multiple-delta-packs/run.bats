@@ -18,8 +18,8 @@ setup() {
   sudo mixer versions update
   mixer-build-all
   mixer-build-delta-packs 10
-  test $(ls ./update/www/30/delta/ | wc -l) -eq 1
-  test $(ls ./update/www/10/delta/ | wc -l) -eq 0
-  test $(ls ./update/www/20/delta/ | wc -l) -eq 1
+  test $(sudo ls ./update/www/30/delta/ | wc -l) -eq 1
+  test $(sudo ls ./update/www/10/delta/ | wc -l) -eq 0
+  test $(sudo ls ./update/www/20/delta/ | wc -l) -eq 1
   }
 # vi: ft=sh ts=8 sw=2 sts=2 et tw=80
