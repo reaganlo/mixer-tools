@@ -72,6 +72,7 @@ type mixerConf struct {
 	LocalRepoDir   string `required:"false" mount:"true" toml:"LOCAL_REPO_DIR"`
 	LocalRPMDir    string `required:"false" mount:"true" toml:"LOCAL_RPM_DIR"`
 	OSReleasePath  string `required:"false" mount:"true" toml:"OS_RELEASE_PATH"`
+	LogFilePath    string `required:"false" mount:"true" toml:"LOG"`
 }
 
 // LoadDefaults sets sane values for the config properties
@@ -112,6 +113,7 @@ func (config *MixConfig) LoadDefaultsForPath(path string) {
 	config.Mixer.LocalRPMDir = filepath.Join(path, "local-rpms")
 	config.Mixer.LocalRepoDir = filepath.Join(path, "local-yum")
 
+	config.Mixer.LogFilePath = ""
 	config.version = CurrentConfigVersion
 	config.filename = filepath.Join(path, "builder.conf")
 

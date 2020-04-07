@@ -19,7 +19,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"os/exec"
@@ -31,7 +30,9 @@ import (
 
 	"github.com/clearlinux/mixer-tools/config"
 	"github.com/clearlinux/mixer-tools/helpers"
+	"github.com/clearlinux/mixer-tools/log"
 	"github.com/clearlinux/mixer-tools/swupd"
+
 	"github.com/pkg/errors"
 )
 
@@ -134,7 +135,7 @@ func (b *Builder) InitMix(upstreamVer string, mixVer string, allLocal bool, allU
 	// Deprecate '.clearurl' --> 'upstreamurl'
 	if _, err := os.Stat(filepath.Join(b.Config.Builder.VersionPath, ".clearurl")); err == nil {
 		b.UpstreamURLFile = ".clearurl"
-		log.Println("Warning: '.clearurl' has been deprecated. Please rename file to 'upstreamurl'")
+		log.Warning(log.Mixer, "'.clearurl' has been deprecated. Please rename file to 'upstreamurl'")
 	}
 	if err := ioutil.WriteFile(filepath.Join(b.Config.Builder.VersionPath, b.UpstreamURLFile), []byte(upstreamURL), 0644); err != nil {
 		return err
@@ -154,7 +155,7 @@ func (b *Builder) InitMix(upstreamVer string, mixVer string, allLocal bool, allU
 	// Deprecate '.clearversion' --> 'upstreamversion'
 	if _, err := os.Stat(filepath.Join(b.Config.Builder.VersionPath, ".clearversion")); err == nil {
 		b.UpstreamVerFile = ".clearversion"
-		log.Println("Warning: '.clearversion' has been deprecated. Please rename file to 'upstreamversion'")
+		log.Warning(log.Mixer, "'.clearversion' has been deprecated. Please rename file to 'upstreamversion'")
 	}
 	if err := ioutil.WriteFile(filepath.Join(b.Config.Builder.VersionPath, b.UpstreamVerFile), []byte(upstreamVer), 0644); err != nil {
 		return err
@@ -164,7 +165,7 @@ func (b *Builder) InitMix(upstreamVer string, mixVer string, allLocal bool, allU
 	// Deprecate '.mixversion' --> 'mixversion'
 	if _, err := os.Stat(filepath.Join(b.Config.Builder.VersionPath, ".mixversion")); err == nil {
 		b.MixVerFile = ".mixversion"
-		log.Println("Warning: '.mixversion' has been deprecated. Please rename file to 'mixversion'")
+		log.Warning(log.Mixer, "'.mixversion' has been deprecated. Please rename file to 'mixversion'")
 	}
 	if err := ioutil.WriteFile(filepath.Join(b.Config.Builder.VersionPath, b.MixVerFile), []byte(mixVer), 0644); err != nil {
 		return err
@@ -242,8 +243,7 @@ func (b *Builder) BuildBundles(template *x509.Certificate, privkey *rsa.PrivateK
 
 	// Generate the dnf config file if it does not exist.
 	// This takes the template and adds the relevant local rpm repo path if needed
-	fmt.Println("Building bundles...")
-
+	log.Info(log.Mixer, "Building bundles...")
 	timer := &stopWatch{w: os.Stdout}
 	defer timer.WriteSummary(os.Stdout)
 
@@ -270,7 +270,7 @@ func (b *Builder) BuildBundles(template *x509.Certificate, privkey *rsa.PrivateK
 	// Clean existing image and output directories
 	mixImageDir := path.Join(b.Config.Builder.ServerStateDir, "image", b.MixVer)
 	if _, err := os.Stat(mixImageDir); err == nil {
-		fmt.Printf("* Wiping away existing image directory for version %s...\n", b.MixVer)
+		log.Info(log.Mixer, "* Wiping away existing image directory for version %s...", b.MixVer)
 		if err = os.RemoveAll(mixImageDir); err != nil {
 			return err
 		}
@@ -280,7 +280,7 @@ func (b *Builder) BuildBundles(template *x509.Certificate, privkey *rsa.PrivateK
 
 	mixOutputDir := path.Join(b.Config.Builder.ServerStateDir, "www", b.MixVer)
 	if _, err := os.Stat(mixOutputDir); err == nil {
-		fmt.Printf("* Wiping away existing output directory for version %s...\n", b.MixVer)
+		log.Info(log.Mixer, "* Wiping away existing output directory for version %s...", b.MixVer)
 		if err = os.RemoveAll(mixOutputDir); err != nil {
 			return err
 		}
@@ -601,14 +601,14 @@ func (b *Builder) BuildDeltaPacksPreviousVersions(prev, to uint32, printReport b
 		var m *swupd.Manifest
 		m, err = swupd.ParseManifestFile(filepath.Join(outputDir, fmt.Sprint(cur), "Manifest.MoM"))
 		if err != nil {
-			log.Printf("Warning: Could not find manifest for previous version %d, skipping...\n", cur)
+			log.Warning(log.Mixer, "Could not find manifest for previous version %d, skipping...", cur)
 			continue
 		}
 		// do not create delta-packs over format bumps since clients can't update
 		// past the boundary anyways. Only check for inequality, if the format
 		// goes down that should be checked elsewhere.
 		if m.Header.Format != toManifest.Header.Format {
-			log.Println("Warning: skipping delta-pack creation over format bump")
+			log.Warning(log.Mixer, "skipping delta-pack creation over format bump")
 			continue
 		}
 		previousManifests = append(previousManifests, m)
@@ -671,7 +671,7 @@ func (b *Builder) BuildDeltaPacksPreviousVersions(prev, to uint32, printReport b
 	wg.Wait()
 
 	for i := 0; i < len(deltaErrors); i++ {
-		log.Printf("%s\n", deltaErrors[i])
+		log.Info(log.Mixer, "%s", deltaErrors[i])
 	}
 
 	// Simply pack all deltas up since they are now created
@@ -717,7 +717,7 @@ func (b *Builder) BuildDeltaManifests(from, to uint32) error {
 	fmt.Printf("Creating Manifest delta files from %d to %d\n", from, to)
 	deltas, err := swupd.CreateManifestDeltas(b.Config.Builder.ServerStateDir, fromManifest, toManifest, b.NumDeltaWorkers)
 	if err != nil {
-		log.Printf("  %s\n", err)
+		log.Info(log.Mixer, "  %s", err)
 	} else {
 		created := 0
 		for _, delta := range deltas {
@@ -757,14 +757,14 @@ func (b *Builder) BuildDeltaManifestsPreviousVersions(prev, to uint32) error {
 		var m *swupd.Manifest
 		m, err = swupd.ParseManifestFile(filepath.Join(outputDir, fmt.Sprint(cur), "Manifest.MoM"))
 		if err != nil {
-			log.Printf("Warning: Could not find manifest for previous version %d, skipping...\n", cur)
+			log.Warning(log.Mixer, "Could not find manifest for previous version %d, skipping...", cur)
 			continue
 		}
 		// do not create delta-manifests over format bumps since clients can't update
 		// past the boundary anyways. Only check for inequality, if the format
 		// goes down that should be checked elsewhere.
 		if m.Header.Format != toManifest.Header.Format {
-			log.Println("Warning: skipping delta-pack creation over format bump")
+			log.Warning(log.Mixer, "skipping delta-pack creation over format bump")
 			break
 		}
 		previousManifests = append(previousManifests, m)
@@ -780,7 +780,7 @@ func (b *Builder) BuildDeltaManifestsPreviousVersions(prev, to uint32) error {
 		fmt.Printf("Creating Manifest delta files from %d to %d\n", i.Header.Version, to)
 		deltas, deltaErr := swupd.CreateManifestDeltas(b.Config.Builder.ServerStateDir, i, toManifest, b.NumDeltaWorkers)
 		if deltaErr != nil {
-			log.Printf("  %s\n", err)
+			log.Warning(log.Mixer, "  %s", err)
 		} else {
 			created := 0
 			for _, delta := range deltas {
@@ -788,7 +788,7 @@ func (b *Builder) BuildDeltaManifestsPreviousVersions(prev, to uint32) error {
 					created++
 				}
 			}
-			fmt.Printf("  Created %d Manifest delta files\n", created)
+			log.Info(log.Mixer, "  Created %d Manifest delta files", created)
 
 		}
 	}

@@ -25,8 +25,9 @@ import (
 
 	"github.com/clearlinux/mixer-tools/builder"
 	"github.com/clearlinux/mixer-tools/helpers"
-	"github.com/pkg/errors"
+	"github.com/clearlinux/mixer-tools/log"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -90,11 +91,13 @@ var buildCmd = &cobra.Command{
 			root = root.Parent()
 		}
 		if err := root.PersistentPreRunE(cmd, args); err != nil {
+			log.Error(log.Mixer, err.Error())
 			return err
 		}
 
 		b, err := builder.NewFromConfig(configFile)
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			return err
 		}
 
@@ -113,7 +116,7 @@ func buildBundles(builder *builder.Builder, signflag bool, downloadRetries int) 
 	}
 	// Create the signing and validation key/cert
 	if _, err := os.Stat(builder.Config.Builder.Cert); os.IsNotExist(err) {
-		fmt.Println("Generating certificate for signature validation...")
+		log.Info(log.Mixer, "Generating certificate for signature validation...")
 		privkey, err := helpers.CreateKeyPair()
 		if err != nil {
 			return errors.Wrap(err, "Error generating OpenSSL keypair")
@@ -140,16 +143,19 @@ var buildBundlesCmd = &cobra.Command{
 	Long:    `Build the bundles for your mix`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := checkRoot(); err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
 		b, err := builder.NewFromConfig(configFile)
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 		setWorkers(b)
 		err = buildBundles(b, buildFlags.noSigning, buildFlags.downloadRetries)
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 	},
@@ -284,20 +290,24 @@ var buildFormatOldCmd = &cobra.Command{
 	Long:  `Build the +10 version in the old format for the format bump`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := checkRoot(); err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
 		if buildFlags.newFormat == "" {
+			log.Error(log.Mixer, "Please supply the next format version with --new-format")
 			fail(errors.New("Please supply the next format version with --new-format"))
 		}
 
 		_, err := strconv.Atoi(buildFlags.newFormat)
 		if err != nil {
+			log.Error(log.Mixer, errors.New("Please supply a valid format version with --new-format").Error())
 			fail(errors.New("Please supply a valid format version with --new-format"))
 		}
 
 		b, err := builder.NewFromConfig(configFile)
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
@@ -305,6 +315,7 @@ var buildFormatOldCmd = &cobra.Command{
 
 		lastVer, err := b.GetLastBuildVersion()
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
@@ -312,11 +323,13 @@ var buildFormatOldCmd = &cobra.Command{
 		// setting the previous version in the manifest header field. The PREVIOUS_MIX_VERSION
 		// value is set to the LAST_VER during format bumps to maintain consistent behavior.
 		if err = b.UpdatePreviousMixVersion(lastVer); err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
 		originalVer, err := strconv.Atoi(lastVer)
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
@@ -335,11 +348,13 @@ var buildFormatOldCmd = &cobra.Command{
 		// Build bundles normally. At this point the bundles to be deleted should still
 		// be part of the mixbundles list and the groups.ini
 		if err = buildBundles(b, buildFlags.noSigning, buildFlags.downloadRetries); err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
 		// Remove deleted bundles and replace with empty dirs for update to mark as deleted
 		if err = b.ModifyBundles(b.ReplaceInfoBundles); err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
@@ -348,12 +363,14 @@ var buildFormatOldCmd = &cobra.Command{
 		// (potentially the pack and full-file formats as well, though this is very
 		// rare).
 		if err = b.UpdateMixVer(oldFormatVer); err != nil {
+			log.Error(log.Mixer, err.Error())
 			failf("Couldn't update Mix Version")
 		}
 		source := filepath.Join(b.Config.Builder.ServerStateDir, "image", strconv.Itoa(newFormatVer))
 		dest := filepath.Join(b.Config.Builder.ServerStateDir, "image", strconv.Itoa(oldFormatVer))
 		fmt.Println(" Copying +20 bundles to +10 bundles")
 		if err = helpers.RunCommandSilent("cp", "-al", source, dest); err != nil {
+			log.Error(log.Mixer, err.Error())
 			failf("Failed to copy +10 bundles to +20: %s\n", err)
 		}
 
@@ -370,17 +387,20 @@ var buildFormatOldCmd = &cobra.Command{
 			SkipPacks:     buildFlags.skipPacks,
 		}
 		if err = b.BuildUpdate(params); err != nil {
+			log.Error(log.Mixer, err.Error())
 			failf("Couldn't build update: %s", err)
 		}
 
 		// Write the +0 version to LAST_VER so that we reference in both +10 and +20 manifests as the 'previous:'
 		if err = ioutil.WriteFile(filepath.Join(b.Config.Builder.ServerStateDir, "image", "LAST_VER"), []byte(lastVer), 0644); err != nil {
+			log.Error(log.Mixer, "Couldn't update LAST_VER file: %s", err)
 			failf("Couldn't update LAST_VER file: %s", err)
 		}
 
 		// PREVIOUS_MIX_VERSION is set to the LAST_VER for format bumps to maintain
 		// consistent format bump behavior.
 		if err = b.UpdatePreviousMixVersion(lastVer); err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 	},
@@ -513,11 +533,13 @@ var buildAllCmd = &cobra.Command{
 	Long:  `Build all content for mix with default options`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := checkRoot(); err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 
 		b, err := builder.NewFromConfig(configFile)
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			fail(err)
 		}
 		setWorkers(b)
@@ -525,11 +547,13 @@ var buildAllCmd = &cobra.Command{
 		if err == nil {
 			err = b.AddRPMList(rpms)
 			if err != nil {
+				log.Error(log.Mixer, "Couldn't add the RPMs: %s", err)
 				failf("Couldn't add the RPMs: %s", err)
 			}
 		}
 		err = buildBundles(b, buildFlags.noSigning, buildFlags.downloadRetries)
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			failf("Couldn't build bundles: %s", err)
 		}
 		params := builder.UpdateParameters{
@@ -542,18 +566,22 @@ var buildAllCmd = &cobra.Command{
 		}
 		err = b.BuildUpdate(params)
 		if err != nil {
+			log.Error(log.Mixer, err.Error())
 			failf("Couldn't build update: %s", err)
 		}
 
 		if buildFlags.increment {
 			if err = b.UpdatePreviousMixVersion(b.MixVer); err != nil {
+				log.Error(log.Mixer, err.Error())
 				fail(err)
 			}
 			ver, err := strconv.Atoi(b.MixVer)
 			if err != nil {
+				log.Error(log.Mixer, err.Error())
 				fail(err)
 			}
 			if err = b.UpdateMixVer(ver + 10); err != nil {
+				log.Error(log.Mixer, err.Error())
 				failf("Couldn't update Mix Version")
 			}
 		}
